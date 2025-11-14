@@ -1,0 +1,7 @@
+{
+  "name": "n8n Visual Prompt Builder with Gemini AI",
+  "description": "An interactive web application to visually construct, test, and export complex prompts for n8n workflows, powered by the Gemini API. Features a drag-and-drop interface, real-time JSON preview, live conversational testing, and TTS output.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
