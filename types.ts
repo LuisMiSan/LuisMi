@@ -1,3 +1,4 @@
+
 import { Type } from '@google/genai';
 
 export enum BlockType {
@@ -23,12 +24,14 @@ export interface NodeData {
   toolDescription?: string;
   toolParameters?: { key: string; description: string }[];
   responseSchema?: any;
+  highlightQuery?: string;
+  highlightField?: string;
 }
 
 // Minimal interface for Schema from @google/genai
 export interface Schema {
   type: Type;
   description?: string;
-  properties?: { [key: string]: Schema };
+  properties?: { [key:string]: Schema };
   items?: Schema;
 }

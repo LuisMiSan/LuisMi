@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import ReactFlow, {
   ReactFlowProvider,
@@ -30,6 +31,26 @@ import {
 import { BlockType, Model, NodeData } from './types';
 
 const LOCAL_STORAGE_KEY = 'n8n-visual-prompt-builder-flow';
+
+const fuzzyMatch = (query: string, text: string): boolean => {
+  if (!query) return true;
+  if (!text) return false;
+
+  const lowerQuery = query.toLowerCase();
+  const lowerText = text.toLowerCase();
+  let queryIndex = 0;
+  let textIndex = 0;
+
+  while (queryIndex < lowerQuery.length && textIndex < lowerText.length) {
+    if (lowerQuery[queryIndex] === lowerText[textIndex]) {
+      queryIndex++;
+    }
+    textIndex++;
+  }
+
+  return queryIndex === lowerQuery.length;
+};
+
 
 const App: React.FC = () => {
   const { initialNodes, initialEdges } = useMemo(() => {
@@ -106,24 +127,31 @@ const App: React.FC = () => {
 
       const tools: any[] = sortedNodes
         .filter(node => node.type === BlockType.TOOL && node.data.toolName)
-        .map(node => ({
-          functionDeclarations: [
-            {
-              name: node.data.toolName,
-              description: node.data.toolDescription,
-              parameters: {
-                type: Type.OBJECT,
-                properties: node.data.toolParameters?.reduce((acc, param) => {
-                  if (param.key) { // Ensure key is not empty
-                    acc[param.key] = { type: Type.STRING, description: param.description };
-                  }
-                  return acc;
-                }, {} as Record<string, {type: Type, description: string}>) || {},
-                required: node.data.toolParameters?.map(p => p.key).filter(Boolean) || [],
-              },
+        .map(node => {
+          const functionDeclaration: any = {
+            name: node.data.toolName,
+            description: node.data.toolDescription,
+            parameters: {
+              type: Type.OBJECT,
+              properties: node.data.toolParameters?.reduce((acc, param) => {
+                if (param.key) { // Ensure key is not empty
+                  acc[param.key] = { type: Type.STRING, description: param.description };
+                }
+                return acc;
+              }, {} as Record<string, { type: Type, description: string }>) || {},
+              required: node.data.toolParameters?.map(p => p.key).filter(Boolean) || [],
             },
-          ],
-        }));
+          };
+
+          if (node.data.responseSchema && node.data.responseSchema.properties && Object.keys(node.data.responseSchema.properties).length > 0) {
+            functionDeclaration.responseMimeType = 'application/json';
+            functionDeclaration.responseSchema = node.data.responseSchema;
+          }
+
+          return {
+            functionDeclarations: [functionDeclaration]
+          };
+        });
 
       if (sortedNodes.some(node => node.type === BlockType.GOOGLE_SEARCH)) {
         tools.push({ googleSearch: {} });
@@ -258,31 +286,50 @@ const App: React.FC = () => {
   }, [nodes, edges]);
 
   const filteredNodes = useMemo(() => {
-    if (!searchQuery) {
-        return nodes.map(node => ({...node, className: ''}));
-    }
-
-    const lowerCaseQuery = searchQuery.toLowerCase();
-
     return nodes.map(node => {
-        const { type, data } = node;
-        let isMatch = false;
+      // Create a new node object to avoid direct mutation
+      const newNode = { ...node, data: { ...node.data } };
+      
+      // Reset highlight data for this render
+      delete newNode.data.highlightQuery;
+      delete newNode.data.highlightField;
 
-        if (type?.toLowerCase().replace('_', ' ').includes(lowerCaseQuery)) {
+      if (!searchQuery) {
+        return { ...newNode, className: '' };
+      }
+
+      const lowerCaseQuery = searchQuery.toLowerCase();
+      const { type, data } = newNode;
+      let isMatch = false;
+      let highlightField = '';
+
+      const nodeTypeName = type?.toLowerCase().replace('_', ' ') || '';
+      if (fuzzyMatch(lowerCaseQuery, nodeTypeName)) {
+        isMatch = true;
+        highlightField = 'type';
+      }
+
+      if (!isMatch && data) {
+        const searchableFields: (keyof Omit<NodeData, 'label' | 'toolParameters' | 'responseSchema'>)[] = ['toolName', 'toolDescription', 'text', 'condition'];
+        for (const field of searchableFields) {
+          const fieldValue = data[field] as string;
+          if (fieldValue && fuzzyMatch(lowerCaseQuery, fieldValue)) {
             isMatch = true;
+            highlightField = field;
+            break;
+          }
         }
+      }
 
-        if (!isMatch && data) {
-            const searchableFields = [data.text, data.condition, data.toolName, data.toolDescription];
-            if (searchableFields.some(field => field?.toLowerCase().includes(lowerCaseQuery))) {
-                isMatch = true;
-            }
-        }
-        
-        return {
-            ...node,
-            className: isMatch ? 'node-highlighted' : 'node-dimmed'
-        };
+      if (isMatch) {
+        newNode.data.highlightQuery = searchQuery;
+        newNode.data.highlightField = highlightField;
+      }
+      
+      return {
+        ...newNode,
+        className: isMatch ? 'node-highlighted' : 'node-dimmed'
+      };
     });
   }, [nodes, searchQuery]);
 
@@ -343,7 +390,7 @@ const App: React.FC = () => {
           </div>
         </div>
       </div>
-       {isLiveAgentOpen && <LiveAgentModal onClose={() => setLiveAgentOpen(false)} />}
+       {isLiveAgentOpen && <LiveAgentModal onClose={() => setLiveAgentOpen(false)} initialPromptJson={generatedJson} />}
     </ReactFlowProvider>
   );
 };

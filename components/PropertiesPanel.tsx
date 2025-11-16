@@ -48,8 +48,8 @@ declare global {
 import React, { useState, useEffect, useRef } from 'react';
 import { Node } from 'reactflow';
 import { NodeData } from '../types';
-import { Type } from '@google/genai';
-import { MicrophoneIcon, StopCircleIcon } from './icons/Icons';
+import { GoogleGenAI, Type } from '@google/genai';
+import { MicrophoneIcon, StopCircleIcon, SparklesIcon } from './icons/Icons';
 
 interface PropertiesPanelProps {
   node: Node<NodeData>;
@@ -62,6 +62,7 @@ const sectionClass = "p-4 border-b border-gray-700";
 
 export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ node, updateNodeData }) => {
   const { data, id } = node;
+  const [isSuggesting, setIsSuggesting] = useState(false);
   
   // --- Voice Input State and Logic ---
   const [listeningNodeId, setListeningNodeId] = useState<string | null>(null);
@@ -174,7 +175,51 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ node, updateNo
     } catch (error) {
       console.error("Invalid JSON for schema");
     }
-  }
+  };
+
+  const handleSuggestSchema = async () => {
+    if (!data.toolName || !data.toolDescription) {
+      alert("Please provide a tool name and description first.");
+      return;
+    }
+
+    setIsSuggesting(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY as string });
+      const prompt = `Based on the following tool name and description, generate a suitable JSON response schema for its output. The schema must adhere to the Google Generative AI API's 'responseSchema' format (using types like 'OBJECT', 'STRING', 'ARRAY', etc.). Only return the raw JSON schema object, with no surrounding text or markdown formatting.
+
+        Tool Name: "${data.toolName}"
+        Tool Description: "${data.toolDescription}"`;
+      
+      const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: prompt,
+        config: {
+          responseMimeType: 'application/json',
+          // A loose schema to ensure the model returns a JSON object that looks like a schema.
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              type: { type: Type.STRING },
+              properties: { type: Type.OBJECT },
+              items: { type: Type.OBJECT },
+              description: { type: Type.STRING },
+            }
+          }
+        },
+      });
+
+      const suggestedSchemaText = response.text;
+      const suggestedSchema = JSON.parse(suggestedSchemaText);
+      updateNodeData(id, { responseSchema: suggestedSchema });
+
+    } catch (error) {
+      console.error("Failed to suggest schema:", error);
+      alert("Could not suggest a schema. Please check the console for details.");
+    } finally {
+      setIsSuggesting(false);
+    }
+  };
   
   const renderContent = () => {
     const isListening = listeningNodeId === id;
@@ -277,6 +322,27 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ node, updateNo
               <button onClick={addParam} className="mt-2 w-full p-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white font-semibold">
                 Add Parameter
               </button>
+            </div>
+             <div className="pt-4 border-t border-gray-700">
+                <div className="flex justify-between items-center mb-1">
+                  <label htmlFor="tool-schema" className={commonLabelClass}>JSON Response Schema (Optional)</label>
+                   <button
+                    onClick={handleSuggestSchema}
+                    disabled={!data.toolName || !data.toolDescription || isSuggesting}
+                    className="flex items-center text-xs px-2 py-1 bg-indigo-600 text-white rounded-md hover:bg-indigo-700 disabled:bg-gray-500 disabled:cursor-not-allowed transition-colors"
+                  >
+                    <SparklesIcon className="w-4 h-4 mr-1" />
+                    {isSuggesting ? 'Suggesting...' : 'Suggest Schema'}
+                  </button>
+                </div>
+                <textarea
+                  id="tool-schema"
+                  value={JSON.stringify(data.responseSchema || { type: Type.OBJECT, properties: {} }, null, 2)}
+                  onChange={handleSchemaChange}
+                  className={`${commonInputClass} h-40 font-mono text-sm`}
+                  placeholder="Define the expected JSON output format for this tool."
+                />
+                <p className="text-xs text-gray-500 mt-2">If defined, the model will try to return JSON matching this schema when this tool is called.</p>
             </div>
           </div>
         );
