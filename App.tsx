@@ -120,13 +120,45 @@ const App: React.FC = () => {
     const generateJson = () => {
       const sortedNodes = [...nodes].sort((a, b) => a.position.y - b.position.y);
 
+      // Validation Step
+      const validationErrors: string[] = [];
+      sortedNodes.forEach(node => {
+        if (node.type === BlockType.TOOL) {
+            const toolName = node.data.toolName?.trim();
+            const toolDesc = node.data.toolDescription?.trim();
+            
+            if (!toolName) {
+                validationErrors.push(`Tool Node (ID: ${node.id}) is missing a Tool Name.`);
+            }
+            if (!toolDesc) {
+                validationErrors.push(`Tool Node "${toolName || 'Unnamed'}" is missing a Tool Description.`);
+            }
+            if (node.data.toolParameters && node.data.toolParameters.length > 0) {
+                node.data.toolParameters.forEach((param, idx) => {
+                    if (!param.key?.trim()) {
+                        validationErrors.push(`Tool Node "${toolName || 'Unnamed'}" has an empty key for parameter #${idx + 1}.`);
+                    }
+                });
+            }
+        }
+      });
+
+      if (validationErrors.length > 0) {
+        setGeneratedJson(JSON.stringify({
+            status: "Validation Error",
+            message: "Please fix the following errors to generate the prompt:",
+            errors: validationErrors
+        }, null, 2));
+        return;
+      }
+
       const systemInstructions = sortedNodes
         .filter(node => node.type === BlockType.SYSTEM)
         .map(node => node.data.text)
         .join('\n');
 
       const tools: any[] = sortedNodes
-        .filter(node => node.type === BlockType.TOOL && node.data.toolName)
+        .filter(node => node.type === BlockType.TOOL)
         .map(node => {
           const functionDeclaration: any = {
             name: node.data.toolName,

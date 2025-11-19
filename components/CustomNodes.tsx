@@ -107,12 +107,25 @@ export const ToolNode: React.FC<NodeProps<NodeData>> = ({ data }) => {
     const hasSchema = data.responseSchema && data.responseSchema.properties && Object.keys(data.responseSchema.properties).length > 0;
     const toolName = data.toolName || 'Unnamed Tool';
     const toolDesc = data.toolDescription || 'No description.';
+
+    // Validation Logic
+    const isNameValid = !!data.toolName?.trim();
+    const isDescValid = !!data.toolDescription?.trim();
+    const areParamsValid = !data.toolParameters || data.toolParameters.every(p => !!p.key?.trim());
+    const hasError = !isNameValid || !isDescValid || !areParamsValid;
+
+    const borderClass = hasError ? "border-red-500 ring-1 ring-red-500" : "border-orange-700";
     
     return (
-        <NodeWrapper className="bg-orange-900 border-orange-700 text-orange-100">
+        <NodeWrapper className={`bg-orange-900 ${borderClass} text-orange-100`}>
             <div className={`${commonHeaderStyle} border-orange-600`}>
             <ToolIcon className={`${commonIconStyle} text-orange-400`} />
-            <div className={commonLabelStyle}>{data.highlightField === 'type' && data.highlightQuery ? <Highlight text="Tool" query={data.highlightQuery} /> : 'Tool'}</div>
+            <div className={`${commonLabelStyle} flex items-center justify-between flex-1`}>
+                <div className="flex items-center">
+                   {data.highlightField === 'type' && data.highlightQuery ? <Highlight text="Tool" query={data.highlightQuery} /> : 'Tool'}
+                </div>
+                 {hasError && <span className="text-red-300 text-[10px] uppercase tracking-wide bg-red-900/50 px-1 rounded ml-2">Invalid</span>}
+            </div>
             </div>
             <div className={commonContentStyle}>
                 <p className="font-semibold">

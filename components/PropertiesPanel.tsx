@@ -1,3 +1,4 @@
+
 // Fix: Add types for the Web Speech API which is not standard and may not be in default TS lib files.
 interface SpeechRecognitionAlternative {
   readonly transcript: string;
@@ -275,50 +276,61 @@ export const PropertiesPanel: React.FC<PropertiesPanelProps> = ({ node, updateNo
             </div>
         );
       case 'tool':
+         const isNameInvalid = !data.toolName || data.toolName.trim() === '';
+         const isDescInvalid = !data.toolDescription || data.toolDescription.trim() === '';
+
         return (
           <div className="p-4 space-y-4">
             <div>
-              <label htmlFor="tool-name" className={commonLabelClass}>Tool Name</label>
+              <label htmlFor="tool-name" className={commonLabelClass}>Tool Name <span className="text-red-500">*</span></label>
               <input
                 id="tool-name"
                 type="text"
                 value={data.toolName || ''}
                 onChange={handleToolNameChange}
-                className={commonInputClass}
+                className={`${commonInputClass} ${isNameInvalid ? 'border-red-500 focus:ring-red-500' : ''}`}
                  placeholder="e.g., getWeather"
               />
+              {isNameInvalid && <p className="text-red-400 text-xs mt-1">Required</p>}
             </div>
             <div>
-              <label htmlFor="tool-desc" className={commonLabelClass}>Tool Description</label>
+              <label htmlFor="tool-desc" className={commonLabelClass}>Tool Description <span className="text-red-500">*</span></label>
               <textarea
                 id="tool-desc"
                 value={data.toolDescription || ''}
                 onChange={handleToolDescriptionChange}
-                className={`${commonInputClass} h-24`}
+                className={`${commonInputClass} h-24 ${isDescInvalid ? 'border-red-500 focus:ring-red-500' : ''}`}
                 placeholder="e.g., Get the current weather for a given location."
               />
+               {isDescInvalid && <p className="text-red-400 text-xs mt-1">Required</p>}
             </div>
             <div>
               <h4 className="font-semibold mb-2 text-gray-200">Parameters</h4>
-              {(data.toolParameters || []).map((param, index) => (
-                <div key={index} className="flex items-center space-x-2 mb-2">
-                  <input
-                    type="text"
-                    placeholder="Key"
-                    value={param.key}
-                    onChange={(e) => handleParamChange(index, 'key', e.target.value)}
-                    className={`${commonInputClass} flex-1`}
-                  />
-                  <input
-                    type="text"
-                    placeholder="Description"
-                    value={param.description || ''}
-                    onChange={(e) => handleParamChange(index, 'description', e.target.value)}
-                    className={`${commonInputClass} flex-1`}
-                  />
-                  <button onClick={() => removeParam(index)} className="p-2 bg-red-600 hover:bg-red-700 rounded-md text-white">X</button>
+              {(data.toolParameters || []).map((param, index) => {
+                const isKeyInvalid = !param.key || param.key.trim() === '';
+                return (
+                <div key={index} className="flex items-start space-x-2 mb-2">
+                  <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="Key *"
+                        value={param.key}
+                        onChange={(e) => handleParamChange(index, 'key', e.target.value)}
+                        className={`${commonInputClass} ${isKeyInvalid ? 'border-red-500 focus:ring-red-500' : ''}`}
+                      />
+                  </div>
+                  <div className="flex-1">
+                      <input
+                        type="text"
+                        placeholder="Description"
+                        value={param.description || ''}
+                        onChange={(e) => handleParamChange(index, 'description', e.target.value)}
+                        className={`${commonInputClass}`}
+                      />
+                  </div>
+                  <button onClick={() => removeParam(index)} className="p-2 bg-red-600 hover:bg-red-700 rounded-md text-white h-[38px]">X</button>
                 </div>
-              ))}
+              )})}
               <button onClick={addParam} className="mt-2 w-full p-2 bg-indigo-600 hover:bg-indigo-700 rounded-md text-white font-semibold">
                 Add Parameter
               </button>
